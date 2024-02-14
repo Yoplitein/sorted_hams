@@ -2,6 +2,8 @@
 name = "pixel_sorter"
 edition = "2021"
 
+[lib]
+crate-type = ["cdylib"]
 
 [build-dependencies]
 bindgen = "0.69.4"
