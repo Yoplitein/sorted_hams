@@ -11,7 +11,9 @@ struct Instance {
 }
 
 #[no_mangle]
-pub extern "C" fn f0r_init() {}
+pub extern "C" fn f0r_init() -> i32 {
+	1
+}
 
 #[no_mangle]
 pub extern "C" fn f0r_deinit() {}
