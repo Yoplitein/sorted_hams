@@ -4,4 +4,6 @@ edition = "2021"
 
 [dependencies]
 anyhow = "1.0.79"
+clap = { version = "4.5.1", features = ["derive"] }
 rustfft = "6.2.0"
+tokio = { version = "1.36.0", features = ["rt-multi-thread", "macros", "io-util", "net"] }
