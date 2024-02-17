@@ -8,6 +8,7 @@ struct Instance {
 	width: usize,
 	height: usize,
 	mode: SortMode,
+	reverse: bool,
 	pixels: Vec<u32>,
 }
 
@@ -47,43 +48,66 @@ pub extern "C" fn f0r_get_plugin_info(info: *mut f0r_plugin_info_t) {
 		info.frei0r_version = FREI0R_MAJOR_VERSION as _;
 		info.major_version = 0;
 		info.minor_version = 0;
-		info.num_params = 1;
+		info.num_params = 2;
 	}
 }
 
 #[no_mangle]
 pub extern "C" fn f0r_get_param_info(info: *mut f0r_param_info_t, index: i32) {
 	unsafe {
-		assert!(index == 0);
-		(*info).name = b"mode\0".as_ptr() as _;
-		(*info).type_ = F0R_PARAM_STRING as _;
-		(*info).explanation = b"Sorting mode\0".as_ptr() as _;
+		match index {
+			0 => {
+				(*info).name = b"mode\0".as_ptr() as _;
+				(*info).type_ = F0R_PARAM_STRING as _;
+				(*info).explanation = b"Sorting mode\0".as_ptr() as _;
+			},
+			1 => {
+				(*info).name = b"reverse\0".as_ptr() as _;
+				(*info).type_ = F0R_PARAM_BOOL as _;
+				(*info).explanation = b"Reverse sort\0".as_ptr() as _;
+			},
+			_ => panic!("invalid parameter index {index}"),
+		}
 	}
 }
 
 #[no_mangle]
 pub extern "C" fn f0r_get_param_value(inst: f0r_instance_t, param: f0r_param_t, index: i32) {
 	unsafe {
-		assert!(index == 0);
 		let inst = (inst as *mut Instance).as_mut().unwrap();
-		*(param as *mut *const i8) = inst.mode.c_str().as_ptr() as _;
+		match index {
+			0 => {
+				*(param as *mut *const i8) = inst.mode.c_str().as_ptr() as _;
+			},
+			1 => {
+				*(param as *mut f64) = if inst.reverse { 1.0 } else { 0.0 };
+			},
+			_ => panic!("invalid parameter index {index}"),
+		}
 	}
 }
 
 #[no_mangle]
 pub extern "C" fn f0r_set_param_value(inst: f0r_instance_t, param: f0r_param_t, index: i32) {
 	unsafe {
-		assert!(index == 0);
 		let inst = (inst as *mut Instance).as_mut().unwrap();
-		let param = CStr::from_ptr(*(param as *mut *const i8));
-		for mode in [SortMode::Horizontal, SortMode::Vertical, SortMode::WholeFrame] {
-			let modeStr = CStr::from_bytes_with_nul_unchecked(mode.c_str());
-			if param == modeStr {
-				inst.mode = mode;
-				return;
-			}
+		match index {
+			0 => {
+				let param = CStr::from_ptr(*(param as *mut *const i8));
+				for mode in [SortMode::Horizontal, SortMode::Vertical, SortMode::WholeFrame] {
+					let modeStr = CStr::from_bytes_with_nul_unchecked(mode.c_str());
+					if param == modeStr {
+						inst.mode = mode;
+						return;
+					}
+				}
+				panic!("trying to set mode parameter to unrecognized value {param:?}");
+			},
+			1 => {
+				inst.reverse = *(param as *const f64) >= 0.5;
+			},
+			_ => panic!("invalid parameter index {index}"),
 		}
-		panic!("trying to set mode parameter to unrecognized value {param:?}");
 	}
 }
 
@@ -94,6 +118,7 @@ pub extern "C" fn f0r_construct(width: u32, height: u32) -> f0r_instance_t {
 		width,
 		height,
 		mode: SortMode::Horizontal,
+		reverse: false,
 		pixels: Vec::with_capacity(width * height),
 	};
 	let instance = Box::leak(Box::new(instance));
@@ -127,6 +152,9 @@ pub extern "C" fn f0r_update(inst: f0r_instance_t, time: f64, input: *const u32,
 					inst.pixels.push(input[inst.width * y + x]);
 				}
 				inst.pixels.sort();
+				if inst.reverse {
+					inst.pixels.reverse();
+				}
 				for y in 0 .. inst.height {
 					output[inst.width * y + x] = inst.pixels[y];
 				}
@@ -139,6 +167,9 @@ pub extern "C" fn f0r_update(inst: f0r_instance_t, time: f64, input: *const u32,
 					inst.pixels.push(input[inst.width * y + x]);
 				}
 				inst.pixels.sort();
+				if inst.reverse {
+					inst.pixels.reverse();
+				}
 				for x in 0 .. inst.width {
 					output[inst.width * y + x] = inst.pixels[x];
 				}
@@ -148,6 +179,9 @@ pub extern "C" fn f0r_update(inst: f0r_instance_t, time: f64, input: *const u32,
 			inst.pixels.clear();
 			inst.pixels.extend(input);
 			inst.pixels.sort();
+			if inst.reverse {
+				inst.pixels.reverse();
+			}
 			output.copy_from_slice(&inst.pixels);
 		},
 	}
