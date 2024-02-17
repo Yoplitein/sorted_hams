@@ -2,8 +2,9 @@
 set -e
 
 pixelSort="horizontal"
+reverse="n"
 fftSize="1024"
-optparse=`getopt -o '' -l pixel-sort:,fft-size:,help -- "$@"`
+optparse=`getopt -o '' -l pixel-sort:,reverse,fft-size:,help -- "$@"`
 if [ ! $? -eq 0 ]; then
 	exit 1
 fi
@@ -17,6 +18,10 @@ while true; do
 		--pixel-sort)
 			pixelSort="$2"
 			shift 2
+			;;
+		--reverse)
+			reverse="y"
+			shift
 			;;
 		--fft-size)
 			fftSize="$2"
@@ -55,7 +60,7 @@ ffmpeg -hide_banner -i $infile -map 0:a:0 -f f32le -listen 1 unix:asrc.sock &
 FREI0R_PATH="./target/debug" ffmpeg -hide_banner \
 	-i $infile \
 	-f f32le -ac $audioChannels -ar $audioRate -listen 1 -i unix:adest.sock \
-	-filter_complex '[0:v]frei0r=libpixel_sorter[vout]' \
+	-filter_complex "[0:v]frei0r=libpixel_sorter:$pixelSort|$reverse[vout]" \
 	-map "[vout]" -map 1:a \
 	-c:a aac -b:a 192k \
 	-c:v libx264 -profile:v high444 -preset:v veryslow -crf 20 -movflags +faststart \
